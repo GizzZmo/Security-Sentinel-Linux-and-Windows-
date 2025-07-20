@@ -1,0 +1,5 @@
+{
+  "name": "Windows 11 Security Sentinel",
+  "description": "An advanced security application for Windows 11 that provides real-time threat monitoring, detailed protection analysis, and an AI-powered security assistant to safeguard against sophisticated network tools and attack vectors.",
+  "requestFramePermissions": []
+}
