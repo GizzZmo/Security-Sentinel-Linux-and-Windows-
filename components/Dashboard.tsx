@@ -1,7 +1,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Card from './Card';
-import Icon from './Icon';
+import Icon from './icon';
 
 const chartData = [
   { name: 'Mon', 'Blocked Threats': 4, 'Scans': 10 },

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Card from './Card';
-import Icon from './Icon';
+import Icon from './icon';
 
 const protections = [
   {
