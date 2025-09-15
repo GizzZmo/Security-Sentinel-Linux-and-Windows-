@@ -12,6 +12,45 @@ dist
 dist-ssr
 *.local
 
+# C++ Build artifacts
+build/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.obj
+*.a
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.idb
+*.manifest
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+Debug/
+Release/
+x64/
+
+# Configuration files with sensitive data
+config.ini
+*.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -20,5 +59,4 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
