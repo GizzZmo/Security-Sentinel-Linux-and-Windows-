@@ -24,7 +24,7 @@ function getChatInstance(): Chat {
 }
 
 export async function sendMessageStream(
-  history: ChatMessage[],
+  _history: ChatMessage[], // eslint-disable-line @typescript-eslint/no-unused-vars
   message: string
 ): Promise<AsyncGenerator<GenerateContentResponse>> {
   const chatInstance = getChatInstance();
