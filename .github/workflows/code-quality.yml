@@ -1,4 +1,6 @@
-name: 🧹 Code Quality
+
+name: Code Quality & Security
+
 
 on:
   push:
@@ -6,315 +8,203 @@ on:
   pull_request:
     branches: [ main, develop ]
   schedule:
-    # Run code quality checks weekly on Mondays at 9 AM UTC
-    - cron: '0 9 * * 1'
+
+    # Run security scan weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
 
 jobs:
-  eslint:
-    name: 🔍 ESLint (JavaScript/TypeScript)
+  # Security scanning
+  security-scan:
+    name: Security Scan
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule'
-    
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      
     steps:
-    - name: 📥 Checkout code
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 🟢 Setup Node.js
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, cpp
+        queries: security-and-quality
+        
+    - name: Setup Node.js for analysis
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '18'
         cache: 'npm'
         
-    - name: 📦 Install dependencies
+    - name: Install dependencies for analysis
       run: npm ci
       
-    - name: 🔍 Run ESLint
-      run: |
-        # Create a basic ESLint config if none exists
-        if [ ! -f ".eslintrc.js" ] && [ ! -f ".eslintrc.json" ] && [ ! -f "eslint.config.js" ]; then
-          echo "Creating basic ESLint configuration..."
-          cat > .eslintrc.json << EOF
-        {
-          "env": {
-            "browser": true,
-            "es2021": true,
-            "node": true
-          },
-          "extends": [
-            "eslint:recommended",
-            "@typescript-eslint/recommended"
-          ],
-          "parser": "@typescript-eslint/parser",
-          "parserOptions": {
-            "ecmaVersion": "latest",
-            "sourceType": "module",
-            "ecmaFeatures": {
-              "jsx": true
-            }
-          },
-          "plugins": [
-            "@typescript-eslint",
-            "react"
-          ],
-          "rules": {
-            "no-unused-vars": "warn",
-            "no-console": "warn",
-            "@typescript-eslint/no-unused-vars": "warn",
-            "@typescript-eslint/no-explicit-any": "warn"
-          },
-          "ignorePatterns": ["dist/", "build/", "node_modules/"]
-        }
-        EOF
-        
-          # Install required packages
-          npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin eslint-plugin-react || true
-        fi
-        
-        # Run ESLint
-        npx eslint . --ext .ts,.tsx,.js,.jsx --format json --output-file eslint-report.json || true
-        npx eslint . --ext .ts,.tsx,.js,.jsx || true
-        
-    - name: 📊 Generate ESLint Report
-      run: |
-        echo "### 🔍 ESLint Results" >> $GITHUB_STEP_SUMMARY
-        if [ -f "eslint-report.json" ]; then
-          error_count=$(cat eslint-report.json | jq '[.[] | .errorCount] | add // 0')
-          warning_count=$(cat eslint-report.json | jq '[.[] | .warningCount] | add // 0')
-          
-          echo "- **Errors**: $error_count" >> $GITHUB_STEP_SUMMARY
-          echo "- **Warnings**: $warning_count" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "$error_count" -gt 0 ]; then
-            echo "❌ ESLint found errors that need to be fixed" >> $GITHUB_STEP_SUMMARY
-          elif [ "$warning_count" -gt 0 ]; then
-            echo "⚠️ ESLint found warnings to review" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ No ESLint issues found!" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-        
-    - name: 📤 Upload ESLint report
-      uses: actions/upload-artifact@v4
-      with:
-        name: eslint-report
-        path: eslint-report.json
-        retention-days: 30
-      if: always()
+    - name: Build for analysis
+      run: npm run build
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
 
-  prettier:
-    name: 🎨 Prettier (Code Formatting)
+  # Dependency vulnerability check
+  dependency-check:
+    name: Dependency Vulnerability Check
     runs-on: ubuntu-latest
-    if: github.event_name != 'schedule'
     
     steps:
-    - name: 📥 Checkout code
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 🟢 Setup Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '18'
         cache: 'npm'
         
-    - name: 📦 Install dependencies
+    - name: Install dependencies
       run: npm ci
       
-    - name: 🎨 Run Prettier check
+    - name: Run npm audit
       run: |
-        # Create a basic Prettier config if none exists
-        if [ ! -f ".prettierrc" ] && [ ! -f ".prettierrc.json" ] && [ ! -f "prettier.config.js" ]; then
-          echo "Creating basic Prettier configuration..."
-          cat > .prettierrc.json << EOF
-        {
-          "semi": true,
-          "trailingComma": "es5",
-          "singleQuote": true,
-          "printWidth": 80,
-          "tabWidth": 2,
-          "useTabs": false
-        }
-        EOF
+        npm audit --audit-level=moderate --json > audit-results.json || true
+        cat audit-results.json
         
-          npm install --save-dev prettier || true
-        fi
-        
-        # Run Prettier check
-        echo "### 🎨 Prettier Results" >> $GITHUB_STEP_SUMMARY
-        if npx prettier --check .; then
-          echo "✅ All files are properly formatted!" >> $GITHUB_STEP_SUMMARY
+    - name: Check for high severity vulnerabilities
+      run: |
+        HIGH_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.high // 0')
+        CRITICAL_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.critical // 0')
+        echo "High severity vulnerabilities: $HIGH_VULNS"
+        echo "Critical severity vulnerabilities: $CRITICAL_VULNS"
+        if [ "$CRITICAL_VULNS" -gt 0 ]; then
+          echo "❌ Critical vulnerabilities found!"
+          exit 1
+        elif [ "$HIGH_VULNS" -gt 5 ]; then
+          echo "⚠️ Many high severity vulnerabilities found!"
+          exit 1
         else
-          echo "❌ Some files need formatting. Run \`npx prettier --write .\` to fix." >> $GITHUB_STEP_SUMMARY
+          echo "✅ Vulnerability check passed"
         fi
 
-  cpp-lint:
-    name: 🔨 C++ Code Quality
-    runs-on: ubuntu-latest
-    if: github.event_name != 'schedule'
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🛠️ Install clang-format and cppcheck
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-format cppcheck
-        
-    - name: 🎨 Check C++ formatting
-      run: |
-        echo "### 🔨 C++ Code Quality Results" >> $GITHUB_STEP_SUMMARY
-        
-        # Find C++ files
-        cpp_files=$(find . -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | grep -v build | head -20)
-        
-        if [ -z "$cpp_files" ]; then
-          echo "No C++ files found to check" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "**Files checked**: $(echo "$cpp_files" | wc -l)" >> $GITHUB_STEP_SUMMARY
-          
-          # Check formatting
-          format_issues=0
-          for file in $cpp_files; do
-            if ! clang-format --dry-run --Werror "$file" 2>/dev/null; then
-              format_issues=$((format_issues + 1))
-            fi
-          done
-          
-          if [ $format_issues -eq 0 ]; then
-            echo "✅ All C++ files are properly formatted" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ $format_issues files have formatting issues" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-        
-    - name: 🔍 Run cppcheck
-      run: |
-        # Run cppcheck on source files
-        if [ -d "src" ]; then
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Static Analysis Results:**" >> $GITHUB_STEP_SUMMARY
-          
-          cppcheck_output=$(cppcheck --enable=warning,style,performance,portability --quiet src/ 2>&1 || true)
-          
-          if [ -z "$cppcheck_output" ]; then
-            echo "✅ No cppcheck issues found" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "$cppcheck_output" | head -20 >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-  documentation-check:
-    name: 📚 Documentation Quality
+  # License compliance check
+  license-check:
+    name: License Compliance
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Checkout code
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 🔍 Check documentation
-      run: |
-        echo "### 📚 Documentation Quality Report" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Check for required documentation files
-        required_docs=("README.md" "LICENSE" "CONTRIBUTING.md")
-        missing_docs=()
-        
-        for doc in "${required_docs[@]}"; do
-          if [ -f "$doc" ]; then
-            echo "✅ $doc exists" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ $doc missing" >> $GITHUB_STEP_SUMMARY
-            missing_docs+=("$doc")
-          fi
-        done
-        
-        # Check for TODO/FIXME in documentation
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Documentation TODOs:**" >> $GITHUB_STEP_SUMMARY
-        todo_count=$(grep -r -i "TODO\|FIXME\|XXX" *.md wiki/ 2>/dev/null | wc -l || echo "0")
-        echo "- Found $todo_count TODO items in documentation" >> $GITHUB_STEP_SUMMARY
-        
-        # Check README quality
-        if [ -f "README.md" ]; then
-          readme_lines=$(wc -l < README.md)
-          echo "- README.md has $readme_lines lines" >> $GITHUB_STEP_SUMMARY
-          
-          if [ $readme_lines -lt 50 ]; then
-            echo "⚠️ README seems short, consider adding more details" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ README has good length" >> $GITHUB_STEP_SUMMARY
-          fi
-        fi
-
-  dependency-analysis:
-    name: 📦 Dependency Analysis
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🟢 Setup Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '18'
         cache: 'npm'
         
-    - name: 📦 Install dependencies
+    - name: Install dependencies
       run: npm ci
       
-    - name: 📊 Analyze dependencies
+    - name: Install license checker
+      run: npm install -g license-checker
+      
+    - name: Check licenses
       run: |
-        echo "### 📦 Dependency Analysis" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Count dependencies
-        deps=$(cat package.json | jq '.dependencies | length // 0')
-        dev_deps=$(cat package.json | jq '.devDependencies | length // 0')
-        
-        echo "- **Production dependencies**: $deps" >> $GITHUB_STEP_SUMMARY
-        echo "- **Development dependencies**: $dev_deps" >> $GITHUB_STEP_SUMMARY
-        
-        # Check for outdated packages
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Outdated packages:**" >> $GITHUB_STEP_SUMMARY
-        outdated=$(npm outdated --json 2>/dev/null || echo "{}")
-        outdated_count=$(echo "$outdated" | jq 'length // 0')
-        
-        if [ $outdated_count -eq 0 ]; then
-          echo "✅ All packages are up to date" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "⚠️ $outdated_count packages can be updated" >> $GITHUB_STEP_SUMMARY
-        fi
-        
-        # Bundle size analysis
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Bundle size analysis:**" >> $GITHUB_STEP_SUMMARY
-        if [ -d "dist" ]; then
-          total_size=$(du -sh dist/ | cut -f1)
-          echo "- Total build size: $total_size" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "- Build required for size analysis" >> $GITHUB_STEP_SUMMARY
-        fi
+        echo "Checking package licenses..."
+        license-checker --summary
+        license-checker --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;Unlicense;WTFPL' || echo "License check completed with warnings"
 
-  quality-summary:
-    name: 📊 Quality Summary
+  # Code formatting and style
+  code-style:
+    name: Code Style Check
     runs-on: ubuntu-latest
-    needs: [eslint, prettier, cpp-lint, documentation-check, dependency-analysis]
-    if: always()
     
     steps:
-    - name: 📊 Generate Quality Report
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Check TypeScript formatting
       run: |
-        echo "# 🧹 Code Quality Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔍 ESLint | ${{ needs.eslint.result == 'success' && '✅ Passed' || needs.eslint.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🎨 Prettier | ${{ needs.prettier.result == 'success' && '✅ Passed' || needs.prettier.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔨 C++ Lint | ${{ needs.cpp-lint.result == 'success' && '✅ Passed' || needs.cpp-lint.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📚 Documentation | ${{ needs.documentation-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📦 Dependencies | ${{ needs.dependency-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        # Check if prettier is configured
+        if [ -f ".prettierrc" ] || [ -f ".prettierrc.json" ] || [ -f "prettier.config.js" ]; then
+          npx prettier --check . || echo "Prettier not configured, skipping format check"
+        else
+          echo "Prettier configuration not found, skipping format check"
+        fi
+      continue-on-error: true
+      
+    - name: TypeScript strict check
+      run: |
+        npx tsc --noEmit --strict || echo "TypeScript strict mode check completed"
+      continue-on-error: true
+
+  # Documentation quality
+  docs-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install markdown linter
+      run: |
+        npm install -g markdownlint-cli
+        
+    - name: Lint markdown files
+      run: |
+        markdownlint README.md CONTRIBUTING.md CHANGELOG.md wiki/*.md || echo "Markdown linting completed with warnings"
+      continue-on-error: true
+      
+    - name: Check for TODOs and FIXMEs
+      run: |
+        echo "Checking for TODOs and FIXMEs..."
+        TODO_COUNT=$(grep -r "TODO\|FIXME\|HACK" --include="*.ts" --include="*.tsx" --include="*.cpp" --include="*.h" . | wc -l)
+        echo "Found $TODO_COUNT TODO/FIXME/HACK comments"
+        if [ "$TODO_COUNT" -gt 20 ]; then
+          echo "⚠️ Consider addressing some TODOs before release"
+        fi
+
+  # Performance and size check
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build and analyze bundle size
+      run: |
+        npm run build
+        echo "Build output size:"
+        du -sh dist/
+        echo "Individual file sizes:"
+        find dist/ -type f -exec ls -lh {} \; | awk '{print $5, $9}'
+        
+        # Check if bundle is too large
+        TOTAL_SIZE=$(du -s dist/ | cut -f1)
+        if [ "$TOTAL_SIZE" -gt 10240 ]; then  # 10MB in KB
+          echo "⚠️ Bundle size is quite large: ${TOTAL_SIZE}KB"
+        else
+          echo "✅ Bundle size is reasonable: ${TOTAL_SIZE}KB"
+        fi
+

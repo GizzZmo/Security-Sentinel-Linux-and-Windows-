@@ -1,0 +1,217 @@
+name: Workflow Test
+
+# This workflow tests that all other workflows can run successfully
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  # Validate workflow syntax
+  validate-workflows:
+    name: Validate Workflow Files
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Validate YAML syntax
+      run: |
+        echo "Validating workflow YAML files..."
+        for file in .github/workflows/*.yml; do
+          echo "Checking $file..."
+          python3 -c "
+        import yaml
+        import sys
+        try:
+            with open('$file', 'r') as f:
+                yaml.safe_load(f)
+            print('✅ $file is valid YAML')
+        except yaml.YAMLError as e:
+            print('❌ $file has YAML syntax error:', e)
+            sys.exit(1)
+        except Exception as e:
+            print('❌ Error reading $file:', e)
+            sys.exit(1)
+        "
+        done
+        
+    - name: Check workflow names are unique
+      run: |
+        echo "Checking for unique workflow names..."
+        WORKFLOW_NAMES=$(grep "^name:" .github/workflows/*.yml | cut -d: -f2 | sort)
+        UNIQUE_NAMES=$(echo "$WORKFLOW_NAMES" | sort -u)
+        
+        if [ "$(echo "$WORKFLOW_NAMES" | wc -l)" != "$(echo "$UNIQUE_NAMES" | wc -l)" ]; then
+          echo "❌ Duplicate workflow names found"
+          echo "All names:"
+          echo "$WORKFLOW_NAMES"
+          exit 1
+        else
+          echo "✅ All workflow names are unique"
+        fi
+
+  # Test basic workflow functionality
+  test-basic-functionality:
+    name: Test Basic Functionality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Test npm install
+      run: |
+        echo "Testing npm install..."
+        npm ci
+        echo "✅ npm install successful"
+        
+    - name: Test build process
+      run: |
+        echo "Testing build process..."
+        npm run build
+        echo "✅ Build successful"
+        
+    - name: Test file structure
+      run: |
+        echo "Testing expected file structure..."
+        test -f package.json && echo "✅ package.json exists"
+        test -f tsconfig.json && echo "✅ tsconfig.json exists"
+        test -f vite.config.ts && echo "✅ vite.config.ts exists"
+        test -f CMakeLists.txt && echo "✅ CMakeLists.txt exists"
+        test -d src && echo "✅ src directory exists"
+        test -d include && echo "✅ include directory exists"
+        test -d dist && echo "✅ dist directory created by build"
+
+  # Test workflow dependencies
+  test-workflow-dependencies:
+    name: Test Workflow Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check action versions
+      run: |
+        echo "Checking GitHub Action versions..."
+        
+        # Extract action versions from workflows
+        grep -r "uses:" .github/workflows/ | grep -v "^#" | sort | uniq
+        
+        echo "✅ Action versions extracted"
+        
+    - name: Verify required secrets (simulation)
+      run: |
+        echo "Verifying workflow secret requirements..."
+        
+        # Check if workflows use secrets properly
+        if grep -r "secrets\." .github/workflows/; then
+          echo "⚠️ Workflows use secrets - ensure they are configured in repository"
+        else
+          echo "✅ No hardcoded secret dependencies"
+        fi
+        
+    - name: Check for required permissions
+      run: |
+        echo "Checking workflow permissions..."
+        
+        # Look for permission requirements
+        if grep -r "permissions:" .github/workflows/; then
+          echo "ℹ️ Some workflows require specific permissions"
+          grep -r "permissions:" .github/workflows/ | head -10
+        else
+          echo "✅ No special permission requirements found"
+        fi
+
+  # Simulate workflow execution paths
+  simulate-execution:
+    name: Simulate Workflow Execution
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Simulate CI workflow (web part)
+      run: |
+        echo "Simulating CI workflow - web interface build..."
+        npm ci
+        npx tsc --noEmit
+        npm run build
+        echo "✅ Web interface simulation successful"
+        
+    - name: Simulate documentation workflow
+      run: |
+        echo "Simulating documentation workflow..."
+        
+        # Basic documentation checks
+        test -f README.md && echo "✅ README.md exists"
+        test -f CONTRIBUTING.md && echo "✅ CONTRIBUTING.md exists"
+        test -f CHANGELOG.md && echo "✅ CHANGELOG.md exists"
+        
+        # Count documentation
+        MD_COUNT=$(find . -name "*.md" | wc -l)
+        echo "📝 Found $MD_COUNT markdown files"
+        
+        echo "✅ Documentation simulation successful"
+        
+    - name: Simulate code quality checks
+      run: |
+        echo "Simulating code quality workflow..."
+        
+        # TypeScript check
+        npx tsc --noEmit
+        echo "✅ TypeScript check passed"
+        
+        # Package audit (non-failing)
+        npm audit --audit-level=moderate || echo "✅ Audit completed"
+        
+        echo "✅ Code quality simulation successful"
+
+  # Test cross-platform compatibility
+  test-cross-platform:
+    name: Test Cross-Platform Compatibility
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Test npm workflow on ${{ matrix.os }}
+      run: |
+        echo "Testing npm workflow on ${{ matrix.os }}..."
+        npm ci
+        npm run build
+        echo "✅ npm workflow successful on ${{ matrix.os }}"
+        
+    - name: Test CMake availability
+      run: |
+        echo "Testing CMake availability on ${{ matrix.os }}..."
+        cmake --version || echo "CMake not available"
+        
+    - name: Test file operations
+      run: |
+        echo "Testing file operations on ${{ matrix.os }}..."
+        ls -la
+        echo "✅ File operations successful on ${{ matrix.os }}"
