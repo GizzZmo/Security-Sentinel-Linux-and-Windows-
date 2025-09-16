@@ -33,7 +33,7 @@ jobs:
     # Web interface build (Ubuntu)
     - name: Setup Node.js (Web)
       if: matrix.os == 'ubuntu-latest'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         node-version: '18'
         cache: 'npm'
