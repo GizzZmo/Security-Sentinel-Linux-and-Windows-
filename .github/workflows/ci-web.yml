@@ -1,0 +1,130 @@
+name: 🌐 Web Interface CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.json'
+      - '**.html'
+      - '**.css'
+      - 'package*.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - '.github/workflows/ci-web.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.json'
+      - '**.html'
+      - '**.css'
+      - 'package*.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+
+jobs:
+  build-and-test:
+    name: 🔨 Build & Test Web Interface
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Run TypeScript checks
+      run: npx tsc --noEmit
+      
+    - name: 🔨 Build project
+      run: npm run build
+      
+    - name: 📏 Check bundle size
+      run: |
+        echo "### Bundle Size Report 📊" >> $GITHUB_STEP_SUMMARY
+        echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+        find dist -type f -name "*.js" -o -name "*.css" | head -10 | while read file; do
+          size=$(du -h "$file" | cut -f1)
+          echo "| $file | $size |" >> $GITHUB_STEP_SUMMARY
+        done
+        
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-build-${{ matrix.node-version }}
+        path: dist/
+        retention-days: 7
+
+  lint:
+    name: 🧹 Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔍 Run ESLint (if configured)
+      run: |
+        if [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ] || [ -f "eslint.config.js" ]; then
+          npx eslint . --ext .ts,.tsx,.js,.jsx --max-warnings 0
+        else
+          echo "ESLint not configured, skipping..."
+        fi
+      continue-on-error: true
+      
+    - name: 🎨 Run Prettier check (if configured)
+      run: |
+        if [ -f ".prettierrc" ] || [ -f ".prettierrc.json" ] || [ -f "prettier.config.js" ]; then
+          npx prettier --check .
+        else
+          echo "Prettier not configured, skipping..."
+        fi
+      continue-on-error: true
+
+  security-scan:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 🔍 Run npm audit
+      run: |
+        npm audit --audit-level moderate || true
+        echo "### Security Audit Results 🔒" >> $GITHUB_STEP_SUMMARY
+        npm audit --audit-level moderate --parseable | head -20 >> $GITHUB_STEP_SUMMARY || true

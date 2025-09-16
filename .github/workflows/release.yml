@@ -8,10 +8,12 @@ on:
     inputs:
       version:
         description: 'Release version (e.g., v1.0.0)'
+
         required: true
         type: string
 
 jobs:
+
   # Build all artifacts for release
   build-release:
     name: Build Release Artifacts
@@ -152,3 +154,4 @@ jobs:
           For detailed installation instructions, see [Installation Guide](https://github.com/GizzZmo/security-sentinel-for-windows-11/wiki/Installation-Guide.md)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -1,0 +1,138 @@
+name: 🔨 C++ Build CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - 'CMakeLists.txt'
+      - 'include/**'
+      - 'src/**'
+      - '.github/workflows/ci-cpp.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.hpp'
+      - 'CMakeLists.txt'
+      - 'include/**'
+      - 'src/**'
+
+jobs:
+  build-windows:
+    name: 🪟 Build Windows (MSVC)
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+        
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🛠️ Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: 📦 Setup CMake
+      uses: lukka/get-cmake@latest
+      
+    - name: 🔧 Configure CMake
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        
+    - name: 🔨 Build C++ Project
+      run: |
+        cmake --build build --config ${{ matrix.build_type }} --parallel
+        
+    - name: 📋 List build outputs
+      run: |
+        echo "### Build Output Files 📁" >> $env:GITHUB_STEP_SUMMARY
+        echo "| File | Size |" >> $env:GITHUB_STEP_SUMMARY
+        echo "|------|------|" >> $env:GITHUB_STEP_SUMMARY
+        Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.dll", "*.lib" | ForEach-Object {
+          $size = [math]::Round($_.Length / 1KB, 2)
+          echo "| $($_.FullName) | ${size} KB |" >> $env:GITHUB_STEP_SUMMARY
+        }
+        
+    - name: 🧪 Run basic executable test
+      run: |
+        $exe_path = Get-ChildItem -Path "build" -Recurse -Include "SecuritySentinel.exe" | Select-Object -First 1
+        if ($exe_path) {
+          echo "Found executable: $($exe_path.FullName)"
+          echo "File size: $([math]::Round($exe_path.Length / 1MB, 2)) MB"
+          # Note: Can't run the executable in CI as it requires Windows admin privileges
+          echo "✅ Executable built successfully" >> $env:GITHUB_STEP_SUMMARY
+        } else {
+          echo "❌ Executable not found" >> $env:GITHUB_STEP_SUMMARY
+          exit 1
+        }
+        
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: cpp-build-${{ matrix.build_type }}
+        path: |
+          build/bin/
+          build/Release/
+          build/Debug/
+        retention-days: 7
+
+  code-analysis:
+    name: 🔍 Static Code Analysis
+    runs-on: windows-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🛠️ Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: 📦 Setup CMake
+      uses: lukka/get-cmake@latest
+      
+    - name: 🔧 Configure with static analysis
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Debug
+        
+    - name: 🔍 Run MSVC static analysis
+      run: |
+        echo "### Static Analysis Report 🔍" >> $env:GITHUB_STEP_SUMMARY
+        try {
+          msbuild build/SecuritySentinel.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:RunCodeAnalysis=true /p:CodeAnalysisRuleSet=AllRules.ruleset
+          echo "✅ Static analysis completed successfully" >> $env:GITHUB_STEP_SUMMARY
+        } catch {
+          echo "⚠️ Static analysis found issues (see build logs)" >> $env:GITHUB_STEP_SUMMARY
+        }
+      continue-on-error: true
+
+  security-check:
+    name: 🔒 Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔍 Run Semgrep security scan
+      uses: semgrep/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/cwe-top-25
+        generateSarif: "1"
+      env:
+        SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      continue-on-error: true
+        
+    - name: 📤 Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: semgrep.sarif
+      if: always()
+      continue-on-error: true

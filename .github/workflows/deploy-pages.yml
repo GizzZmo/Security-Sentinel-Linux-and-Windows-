@@ -1,0 +1,122 @@
+name: 🌐 Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.ts'
+      - '**.tsx'
+      - '**.js'
+      - '**.jsx'
+      - '**.json'
+      - '**.html'
+      - '**.css'
+      - 'package*.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 🔨 Build Web Application
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔨 Build for production
+      run: npm run build
+      env:
+        # GitHub Pages base path
+        VITE_BASE: /security-sentinel-for-windows-11/
+        
+    - name: 📄 Create deployment info
+      run: |
+        # Create info file for the deployment
+        cat > dist/deployment-info.json << EOF
+        {
+          "deployedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+          "gitCommit": "${{ github.sha }}",
+          "gitRef": "${{ github.ref }}",
+          "workflow": "${{ github.workflow }}",
+          "runId": "${{ github.run_id }}"
+        }
+        EOF
+        
+        # Create a simple landing page info
+        cat >> dist/index.html << 'EOF'
+        <!-- Deployment Info -->
+        <script>
+        console.log('🚀 Security Sentinel Web Interface');
+        console.log('📅 Deployed:', new Date().toISOString());
+        console.log('🔗 Repository: https://github.com/GizzZmo/security-sentinel-for-windows-11');
+        console.log('📚 Documentation: https://github.com/GizzZmo/security-sentinel-for-windows-11/wiki');
+        </script>
+        EOF
+        
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: dist/
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+    - name: 🚀 Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      
+    - name: 📊 Deployment Summary
+      run: |
+        echo "# 🌐 GitHub Pages Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🚀 Deployment Details" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployed at**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+        echo "- 🌐 [**Live Demo**](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
+        echo "- 📱 [**Mobile View**](${{ steps.deployment.outputs.page_url }}?mobile=1)" >> $GITHUB_STEP_SUMMARY
+        echo "- 📚 [**Documentation**](https://github.com/GizzZmo/security-sentinel-for-windows-11/wiki)" >> $GITHUB_STEP_SUMMARY
+        echo "- 💾 [**Download C++ App**](https://github.com/GizzZmo/security-sentinel-for-windows-11/releases)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## ⚙️ Setup Instructions" >> $GITHUB_STEP_SUMMARY
+        echo "1. Get your Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)" >> $GITHUB_STEP_SUMMARY
+        echo "2. Open the web app and enter your API key when prompted" >> $GITHUB_STEP_SUMMARY
+        echo "3. Start monitoring your Windows 11 security!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔒 Privacy Notice" >> $GITHUB_STEP_SUMMARY
+        echo "- Your API key is stored locally in your browser" >> $GITHUB_STEP_SUMMARY
+        echo "- No data is sent to GitHub or third parties" >> $GITHUB_STEP_SUMMARY
+        echo "- All communication is directly with Google's Gemini API" >> $GITHUB_STEP_SUMMARY
