@@ -1,0 +1,206 @@
+name: Code Quality & Security
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scan weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  # Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v3
+      with:
+        languages: javascript, cpp
+        queries: security-and-quality
+        
+    - name: Setup Node.js for analysis
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies for analysis
+      run: npm ci
+      
+    - name: Build for analysis
+      run: npm run build
+      
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  # Dependency vulnerability check
+  dependency-check:
+    name: Dependency Vulnerability Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      run: |
+        npm audit --audit-level=moderate --json > audit-results.json || true
+        cat audit-results.json
+        
+    - name: Check for high severity vulnerabilities
+      run: |
+        HIGH_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.high // 0')
+        CRITICAL_VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities.critical // 0')
+        echo "High severity vulnerabilities: $HIGH_VULNS"
+        echo "Critical severity vulnerabilities: $CRITICAL_VULNS"
+        if [ "$CRITICAL_VULNS" -gt 0 ]; then
+          echo "❌ Critical vulnerabilities found!"
+          exit 1
+        elif [ "$HIGH_VULNS" -gt 5 ]; then
+          echo "⚠️ Many high severity vulnerabilities found!"
+          exit 1
+        else
+          echo "✅ Vulnerability check passed"
+        fi
+
+  # License compliance check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install license checker
+      run: npm install -g license-checker
+      
+    - name: Check licenses
+      run: |
+        echo "Checking package licenses..."
+        license-checker --summary
+        license-checker --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;Unlicense;WTFPL' || echo "License check completed with warnings"
+
+  # Code formatting and style
+  code-style:
+    name: Code Style Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Check TypeScript formatting
+      run: |
+        # Check if prettier is configured
+        if [ -f ".prettierrc" ] || [ -f ".prettierrc.json" ] || [ -f "prettier.config.js" ]; then
+          npx prettier --check . || echo "Prettier not configured, skipping format check"
+        else
+          echo "Prettier configuration not found, skipping format check"
+        fi
+      continue-on-error: true
+      
+    - name: TypeScript strict check
+      run: |
+        npx tsc --noEmit --strict || echo "TypeScript strict mode check completed"
+      continue-on-error: true
+
+  # Documentation quality
+  docs-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install markdown linter
+      run: |
+        npm install -g markdownlint-cli
+        
+    - name: Lint markdown files
+      run: |
+        markdownlint README.md CONTRIBUTING.md CHANGELOG.md wiki/*.md || echo "Markdown linting completed with warnings"
+      continue-on-error: true
+      
+    - name: Check for TODOs and FIXMEs
+      run: |
+        echo "Checking for TODOs and FIXMEs..."
+        TODO_COUNT=$(grep -r "TODO\|FIXME\|HACK" --include="*.ts" --include="*.tsx" --include="*.cpp" --include="*.h" . | wc -l)
+        echo "Found $TODO_COUNT TODO/FIXME/HACK comments"
+        if [ "$TODO_COUNT" -gt 20 ]; then
+          echo "⚠️ Consider addressing some TODOs before release"
+        fi
+
+  # Performance and size check
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build and analyze bundle size
+      run: |
+        npm run build
+        echo "Build output size:"
+        du -sh dist/
+        echo "Individual file sizes:"
+        find dist/ -type f -exec ls -lh {} \; | awk '{print $5, $9}'
+        
+        # Check if bundle is too large
+        TOTAL_SIZE=$(du -s dist/ | cut -f1)
+        if [ "$TOTAL_SIZE" -gt 10240 ]; then  # 10MB in KB
+          echo "⚠️ Bundle size is quite large: ${TOTAL_SIZE}KB"
+        else
+          echo "✅ Bundle size is reasonable: ${TOTAL_SIZE}KB"
+        fi

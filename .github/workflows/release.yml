@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  # Build all artifacts for release
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows
+          - os: ubuntu-latest
+            artifact: web
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    # Web interface build (Ubuntu)
+    - name: Setup Node.js (Web)
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Build web interface
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        npm ci
+        npm run build
+        
+    - name: Package web interface
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cd dist
+        tar -czf ../security-sentinel-web-${{ github.ref_name || inputs.version }}.tar.gz *
+        
+    # Windows C++ build
+    - name: Setup MSVC (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: lukka/get-cmake@latest
+      
+    - name: Build Windows application
+      if: matrix.os == 'windows-latest'
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G "Visual Studio 17 2022" -A x64
+        cmake --build . --config Release
+        
+    - name: Package Windows application
+      if: matrix.os == 'windows-latest'
+      run: |
+        mkdir release-package
+        Copy-Item -Path "build/bin/Release/*" -Destination "release-package/" -Recurse -ErrorAction SilentlyContinue
+        Copy-Item -Path "README.md" -Destination "release-package/"
+        Copy-Item -Path "LICENSE" -Destination "release-package/"
+        echo "[gemini]" | Out-File -FilePath "release-package/config.ini" -Encoding ASCII
+        echo "api_key=YOUR_API_KEY_HERE" | Out-File -FilePath "release-package/config.ini" -Append -Encoding ASCII
+        Compress-Archive -Path "release-package/*" -DestinationPath "security-sentinel-windows-${{ github.ref_name || inputs.version }}.zip"
+        
+    # Upload artifacts
+    - name: Upload web artifact
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-release
+        path: security-sentinel-web-*.tar.gz
+        
+    - name: Upload Windows artifact
+      if: matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-release
+        path: security-sentinel-windows-*.zip
+
+  # Create GitHub release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-release
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Display structure
+      run: find . -type f -name "*.tar.gz" -o -name "*.zip"
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name || inputs.version }}
+        name: Security Sentinel ${{ github.ref_name || inputs.version }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          web-release/*.tar.gz
+          windows-release/*.zip
+        body: |
+          ## Security Sentinel for Windows 11 - Release ${{ github.ref_name || inputs.version }}
+          
+          ### 📦 Downloads
+          
+          **Windows Native Application:**
+          - `security-sentinel-windows-${{ github.ref_name || inputs.version }}.zip` - Complete Windows application with C++ native backend
+          
+          **Web Interface:**
+          - `security-sentinel-web-${{ github.ref_name || inputs.version }}.tar.gz` - Web interface build files
+          
+          ### 🚀 Installation
+          
+          **Windows Application:**
+          1. Download and extract the Windows zip file
+          2. Edit `config.ini` and add your Gemini API key
+          3. Run `SecuritySentinel.exe` as Administrator
+          
+          **Web Interface:**
+          1. Download and extract the web tar.gz file
+          2. Serve the files using any web server
+          3. Configure your Gemini API key in the interface
+          
+          ### 📋 System Requirements
+          - Windows 11 (21H2 or later)
+          - Administrator privileges (for native app)
+          - Modern web browser (for web interface)
+          - Internet connection (for AI features)
+          
+          For detailed installation instructions, see [Installation Guide](https://github.com/GizzZmo/security-sentinel-for-windows-11/wiki/Installation-Guide.md)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

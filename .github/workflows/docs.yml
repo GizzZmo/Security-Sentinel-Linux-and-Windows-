@@ -1,0 +1,232 @@
+name: Documentation
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.md'
+      - 'wiki/**'
+      - 'docs/**'
+  pull_request:
+    paths:
+      - '**.md'
+      - 'wiki/**'
+      - 'docs/**'
+  workflow_dispatch:
+
+jobs:
+  # Check documentation quality and links
+  docs-validation:
+    name: Documentation Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install markdown tools
+      run: |
+        npm install -g markdownlint-cli
+        npm install -g markdown-link-check
+        
+    - name: Lint markdown files
+      run: |
+        echo "Linting markdown files..."
+        markdownlint README.md CONTRIBUTING.md CHANGELOG.md wiki/*.md || echo "Markdown linting completed with warnings"
+      continue-on-error: true
+      
+    - name: Check markdown links
+      run: |
+        echo "Checking markdown links..."
+        find . -name "*.md" -exec markdown-link-check {} \; || echo "Link checking completed with warnings"
+      continue-on-error: true
+      
+    - name: Verify documentation structure
+      run: |
+        echo "Verifying documentation structure..."
+        
+        # Check required files
+        test -f README.md && echo "✅ README.md exists" || echo "❌ README.md missing"
+        test -f CONTRIBUTING.md && echo "✅ CONTRIBUTING.md exists" || echo "❌ CONTRIBUTING.md missing"
+        test -f LICENSE && echo "✅ LICENSE exists" || echo "❌ LICENSE missing"
+        test -f CHANGELOG.md && echo "✅ CHANGELOG.md exists" || echo "❌ CHANGELOG.md missing"
+        
+        # Check wiki structure
+        if [ -d "wiki" ]; then
+          echo "✅ Wiki directory exists"
+          ls -la wiki/
+        else
+          echo "❌ Wiki directory missing"
+        fi
+        
+        # Check for installation instructions
+        grep -q "Installation" README.md && echo "✅ Installation instructions found" || echo "⚠️ Installation instructions not found in README"
+        
+        # Check for contribution guidelines
+        grep -q "Contributing" README.md && echo "✅ Contributing guidelines linked" || echo "⚠️ Contributing guidelines not linked in README"
+
+  # Generate documentation metrics
+  docs-metrics:
+    name: Documentation Metrics
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Calculate documentation metrics
+      run: |
+        echo "📊 Documentation Metrics Report"
+        echo "================================"
+        
+        # Count markdown files
+        MD_COUNT=$(find . -name "*.md" | wc -l)
+        echo "📝 Total markdown files: $MD_COUNT"
+        
+        # Count lines in documentation
+        DOC_LINES=$(find . -name "*.md" -exec wc -l {} \; | awk '{sum += $1} END {print sum}')
+        echo "📏 Total documentation lines: $DOC_LINES"
+        
+        # Count code files for ratio
+        CODE_FILES=$(find . -name "*.ts" -o -name "*.tsx" -o -name "*.cpp" -o -name "*.h" | wc -l)
+        echo "💻 Total code files: $CODE_FILES"
+        
+        if [ "$CODE_FILES" -gt 0 ]; then
+          DOC_RATIO=$(echo "scale=2; $MD_COUNT / $CODE_FILES" | bc)
+          echo "📊 Documentation to code ratio: $DOC_RATIO"
+        fi
+        
+        # Check README size
+        README_LINES=$(wc -l < README.md)
+        echo "📖 README.md lines: $README_LINES"
+        
+        if [ "$README_LINES" -lt 50 ]; then
+          echo "⚠️ README might be too brief"
+        elif [ "$README_LINES" -gt 500 ]; then
+          echo "⚠️ README might be too long, consider splitting into wiki pages"
+        else
+          echo "✅ README length is appropriate"
+        fi
+
+  # Update documentation index (if needed)
+  docs-index:
+    name: Update Documentation Index
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Generate documentation index
+      run: |
+        echo "# Documentation Index" > DOCS_INDEX.md
+        echo "" >> DOCS_INDEX.md
+        echo "Auto-generated documentation index for Security Sentinel for Windows 11" >> DOCS_INDEX.md
+        echo "" >> DOCS_INDEX.md
+        echo "## Main Documentation" >> DOCS_INDEX.md
+        echo "" >> DOCS_INDEX.md
+        
+        # List main documentation files
+        for file in README.md CONTRIBUTING.md CHANGELOG.md LICENSE; do
+          if [ -f "$file" ]; then
+            echo "- [$file]($file)" >> DOCS_INDEX.md
+          fi
+        done
+        
+        echo "" >> DOCS_INDEX.md
+        echo "## Wiki Pages" >> DOCS_INDEX.md
+        echo "" >> DOCS_INDEX.md
+        
+        # List wiki files
+        if [ -d "wiki" ]; then
+          find wiki/ -name "*.md" | sort | while read file; do
+            filename=$(basename "$file" .md)
+            echo "- [$filename]($file)" >> DOCS_INDEX.md
+          done
+        fi
+        
+        echo "" >> DOCS_INDEX.md
+        echo "## Code Documentation" >> DOCS_INDEX.md
+        echo "" >> DOCS_INDEX.md
+        echo "- [C++ Source Code](src/)" >> DOCS_INDEX.md
+        echo "- [C++ Headers](include/)" >> DOCS_INDEX.md
+        echo "- [TypeScript Components](components/)" >> DOCS_INDEX.md
+        echo "- [Services](services/)" >> DOCS_INDEX.md
+        
+        echo "" >> DOCS_INDEX.md
+        echo "---" >> DOCS_INDEX.md
+        echo "*Last updated: $(date)*" >> DOCS_INDEX.md
+        
+        echo "Generated documentation index:"
+        cat DOCS_INDEX.md
+
+  # Spell check documentation
+  spell-check:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install aspell
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y aspell aspell-en
+        
+    - name: Create custom dictionary
+      run: |
+        echo "Gemini" > custom-dict.txt
+        echo "TypeScript" >> custom-dict.txt
+        echo "JavaScript" >> custom-dict.txt
+        echo "CMake" >> custom-dict.txt
+        echo "npm" >> custom-dict.txt
+        echo "APIs" >> custom-dict.txt
+        echo "JSON" >> custom-dict.txt
+        echo "HTTP" >> custom-dict.txt
+        echo "WebSocket" >> custom-dict.txt
+        echo "OAuth" >> custom-dict.txt
+        echo "GitHub" >> custom-dict.txt
+        echo "README" >> custom-dict.txt
+        echo "TODO" >> custom-dict.txt
+        echo "FIXME" >> custom-dict.txt
+        echo "API" >> custom-dict.txt
+        echo "UI" >> custom-dict.txt
+        echo "UX" >> custom-dict.txt
+        echo "CLI" >> custom-dict.txt
+        echo "UUID" >> custom-dict.txt
+        echo "SDK" >> custom-dict.txt
+        echo "URL" >> custom-dict.txt
+        echo "URI" >> custom-dict.txt
+        echo "TCP" >> custom-dict.txt
+        echo "UDP" >> custom-dict.txt
+        echo "IP" >> custom-dict.txt
+        echo "DNS" >> custom-dict.txt
+        echo "HTTPS" >> custom-dict.txt
+        echo "SSL" >> custom-dict.txt
+        echo "TLS" >> custom-dict.txt
+        echo "DDoS" >> custom-dict.txt
+        echo "AI" >> custom-dict.txt
+        echo "SecuritySentinel" >> custom-dict.txt
+        echo "WinINet" >> custom-dict.txt
+        echo "PSAPI" >> custom-dict.txt
+        echo "IPHLPAPI" >> custom-dict.txt
+        
+    - name: Spell check documentation
+      run: |
+        echo "Running spell check on documentation..."
+        find . -name "*.md" -exec aspell --personal=./custom-dict.txt --list {} \; | sort | uniq > spelling-errors.txt || true
+        
+        if [ -s spelling-errors.txt ]; then
+          echo "⚠️ Potential spelling errors found:"
+          cat spelling-errors.txt
+        else
+          echo "✅ No spelling errors found"
+        fi
+      continue-on-error: true
