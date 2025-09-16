@@ -33,13 +33,13 @@ const Dashboard: React.FC = () => {
           </div>
         </Card>
         <Card title="Network Scans Detected">
-           <div className="flex items-center text-yellow-400">
+          <div className="flex items-center text-yellow-400">
             <p className="text-4xl font-bold mr-4">42</p>
             <p className="text-sm text-slate-400">Reconnaissance activities logged</p>
           </div>
         </Card>
         <Card title="Firewall Rules">
-           <div className="flex items-center text-slate-300">
+          <div className="flex items-center text-slate-300">
             <p className="text-4xl font-bold mr-4">2,154</p>
             <p className="text-sm text-slate-400">Active protection rules</p>
           </div>
@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
       
       <Card title="Weekly Security Overview">
         <div style={{ width: '100%', height: 300 }}>
-           <ResponsiveContainer>
+          <ResponsiveContainer>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
               <XAxis dataKey="name" stroke="#94a3b8" />
