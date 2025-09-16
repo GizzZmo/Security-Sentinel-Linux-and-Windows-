@@ -79,10 +79,10 @@ const AIAssistant: React.FC = () => {
             >
               {msg.content}
               {isLoading && msg.role === 'model' && index === messages.length - 1 && (
-                 <span className="inline-block w-2 h-4 bg-white animate-pulse ml-1" />
+                <span className="inline-block w-2 h-4 bg-white animate-pulse ml-1" />
               )}
             </div>
-             {msg.role === 'user' && (
+            {msg.role === 'user' && (
               <div className="w-8 h-8 flex-shrink-0 bg-slate-600 rounded-full flex items-center justify-center">
                 <Icon name="user" className="w-5 h-5 text-slate-200" />
               </div>

@@ -22,16 +22,16 @@ const generateLogEntry = (id: number): NetworkLog => {
 };
 
 const getStatusColor = (status: NetworkLog['status']) => {
-    return status === 'Blocked' ? 'text-red-400' : 'text-green-400';
+  return status === 'Blocked' ? 'text-red-400' : 'text-green-400';
 }
 
 const getThreatColor = (threat: NetworkLog['threat']) => {
-    switch(threat) {
-        case 'SYN Flood': return 'bg-red-500/20 text-red-300';
-        case 'Port Scan': return 'bg-yellow-500/20 text-yellow-300';
-        case 'Suspicious Payload': return 'bg-orange-500/20 text-orange-300';
-        default: return 'bg-slate-700/50 text-slate-300';
-    }
+  switch(threat) {
+    case 'SYN Flood': return 'bg-red-500/20 text-red-300';
+    case 'Port Scan': return 'bg-yellow-500/20 text-yellow-300';
+    case 'Suspicious Payload': return 'bg-orange-500/20 text-orange-300';
+    default: return 'bg-slate-700/50 text-slate-300';
+  }
 }
 
 
@@ -50,7 +50,7 @@ const NetworkMonitor: React.FC = () => {
         const newLog = generateLogEntry(idCounter.current++);
         const updatedLogs = [newLog, ...prevLogs];
         if (updatedLogs.length > 50) {
-            updatedLogs.pop();
+          updatedLogs.pop();
         }
         return updatedLogs;
       });
@@ -67,7 +67,7 @@ const NetworkMonitor: React.FC = () => {
 
   return (
     <div className="p-6 h-full flex flex-col">
-       <Card title="Real-time Network Traffic" className="flex-grow flex flex-col">
+      <Card title="Real-time Network Traffic" className="flex-grow flex flex-col">
         <div className="grid grid-cols-6 gap-4 px-4 py-2 font-semibold text-slate-400 border-b border-slate-700">
           <div>Timestamp</div>
           <div>Source IP</div>
@@ -88,7 +88,7 @@ const NetworkMonitor: React.FC = () => {
             </div>
           ))}
         </div>
-       </Card>
+      </Card>
     </div>
   );
 };
