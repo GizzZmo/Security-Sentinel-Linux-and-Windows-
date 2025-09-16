@@ -1,0 +1,188 @@
+name: Security Sentinel CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  # Web Interface Build Job
+  web-interface:
+    name: Web Interface (Node.js ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: TypeScript compilation check
+      run: npm run lint
+      
+    - name: Build web interface
+      run: npm run build
+      
+    - name: Verify build output
+      run: |
+        echo "📊 Build output:"
+        ls -la dist/
+        echo "🔍 Build size analysis:"
+        du -sh dist/
+        
+    - name: Upload web artifacts
+      uses: actions/upload-artifact@v4
+      if: matrix.node-version == '20.x' && github.event_name == 'push'
+      with:
+        name: web-interface-dist
+        path: dist/
+        retention-days: 30
+        
+  # C++ Native Application Build Job  
+  native-application:
+    name: C++ Native (${{ matrix.os }}, ${{ matrix.build_type }})
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [windows-latest]
+        build_type: [Debug, Release]
+        
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup CMake
+      uses: lukka/get-cmake@latest
+      
+    - name: Configure build
+      run: |
+        mkdir build
+        cd build
+        cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        
+    - name: Build application
+      run: |
+        cd build
+        cmake --build . --config ${{ matrix.build_type }} --parallel
+        
+    - name: Verify build
+      shell: powershell
+      run: |
+        cd build
+        $exePath = "bin/${{ matrix.build_type }}/SecuritySentinel.exe"
+        if (Test-Path $exePath) {
+          Write-Output "✅ Build successful: SecuritySentinel.exe"
+          $fileInfo = Get-ChildItem $exePath
+          Write-Output "📄 File size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB"
+          Write-Output "📅 Build time: $($fileInfo.LastWriteTime)"
+        } else {
+          Write-Error "❌ Build failed: SecuritySentinel.exe not found"
+          Write-Output "🔍 Available files in build directory:"
+          Get-ChildItem -Recurse | Where-Object {$_.Name -like "*.exe"} | Format-Table Name, Directory, Length
+          exit 1
+        }
+        
+    - name: Upload native artifacts
+      uses: actions/upload-artifact@v4
+      if: matrix.build_type == 'Release' && github.event_name == 'push'
+      with:
+        name: native-application-${{ matrix.os }}
+        path: build/bin/Release/
+        retention-days: 30
+        
+  # Integration Job - Ensures both components work together
+  integration:
+    name: Integration Check
+    runs-on: ubuntu-latest
+    needs: [web-interface, native-application]
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Download web artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: web-interface-dist
+        path: dist/
+        
+    - name: Download native artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: native-application-windows-latest
+        path: native/
+        
+    - name: Integration verification
+      run: |
+        echo "🔍 Integration Check Results:"
+        echo "================================"
+        
+        echo "📦 Web Interface:"
+        if [ -f "dist/index.html" ]; then
+          echo "  ✅ Web interface built successfully"
+          echo "  📊 Files: $(find dist/ -type f | wc -l)"
+        else
+          echo "  ❌ Web interface build missing"
+          exit 1
+        fi
+        
+        echo "🔨 Native Application:"
+        if [ -f "native/SecuritySentinel.exe" ]; then
+          echo "  ✅ Native application built successfully"
+          ls -lh native/SecuritySentinel.exe
+        else
+          echo "  ❌ Native application build missing"
+          exit 1
+        fi
+        
+        echo "🎉 Integration check passed!"
+        
+  # Build status summary
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [web-interface, native-application]
+    if: always()
+    
+    steps:
+    - name: Build Status Summary
+      run: |
+        echo "🏗️ Security Sentinel CI Build Summary"
+        echo "====================================="
+        
+        if [ "${{ needs.web-interface.result }}" == "success" ]; then
+          echo "✅ Web Interface: PASSED"
+        else
+          echo "❌ Web Interface: FAILED"
+        fi
+        
+        if [ "${{ needs.native-application.result }}" == "success" ]; then
+          echo "✅ Native Application: PASSED"
+        else
+          echo "❌ Native Application: FAILED"
+        fi
+        
+        if [ "${{ needs.web-interface.result }}" == "success" ] && [ "${{ needs.native-application.result }}" == "success" ]; then
+          echo "🎉 Overall Status: SUCCESS"
+        else
+          echo "🚨 Overall Status: FAILED"
+          exit 1
+        fi
