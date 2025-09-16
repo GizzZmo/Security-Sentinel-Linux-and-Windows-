@@ -1,0 +1,251 @@
+name: 🚀 Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: 📋 Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 📝 Generate changelog
+      id: changelog
+      run: |
+        # Get the latest tag
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        
+        if [ -z "$LATEST_TAG" ]; then
+          echo "## What's New" > CHANGELOG.md
+          echo "This is the first release of Security Sentinel for Windows 11!" >> CHANGELOG.md
+        else
+          echo "## What's New" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          git log ${LATEST_TAG}..HEAD --pretty=format:"- %s" --no-merges >> CHANGELOG.md
+        fi
+        
+        echo "### 🌟 Key Features" >> CHANGELOG.md
+        echo "- 🛡️ Real-time Security Monitoring" >> CHANGELOG.md
+        echo "- 🤖 AI-Powered Analysis with Google Gemini" >> CHANGELOG.md
+        echo "- 🌐 Network Traffic Monitoring" >> CHANGELOG.md
+        echo "- ⚡ Threat Protection & Auto-blocking" >> CHANGELOG.md
+        echo "- 📊 Interactive Dashboard (Web & Native)" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "### 📥 Download Instructions" >> CHANGELOG.md
+        echo "1. Download the appropriate build for your system" >> CHANGELOG.md
+        echo "2. Get your Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)" >> CHANGELOG.md
+        echo "3. Configure your API key in \`config.ini\`" >> CHANGELOG.md
+        echo "4. Run as Administrator (for C++ version)" >> CHANGELOG.md
+        
+    - name: 🚀 Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name || github.event.inputs.tag }}
+        release_name: Security Sentinel ${{ github.ref_name || github.event.inputs.tag }}
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: ${{ contains(github.ref_name || github.event.inputs.tag, 'alpha') || contains(github.ref_name || github.event.inputs.tag, 'beta') || contains(github.ref_name || github.event.inputs.tag, 'rc') }}
+
+  build-cpp:
+    name: 🔨 Build C++ Release
+    runs-on: windows-latest
+    needs: create-release
+    
+    strategy:
+      matrix:
+        build_type: [Release]
+        
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🛠️ Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: 📦 Setup CMake
+      uses: lukka/get-cmake@latest
+      
+    - name: 🔧 Configure CMake
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        
+    - name: 🔨 Build Release
+      run: |
+        cmake --build build --config ${{ matrix.build_type }} --parallel
+        
+    - name: 📦 Package Release
+      run: |
+        # Create release package
+        New-Item -ItemType Directory -Path "SecuritySentinel-Windows" -Force
+        
+        # Copy executable
+        $exe_path = Get-ChildItem -Path "build" -Recurse -Include "SecuritySentinel.exe" | Select-Object -First 1
+        if ($exe_path) {
+          Copy-Item $exe_path.FullName "SecuritySentinel-Windows/"
+        }
+        
+        # Copy required files
+        Copy-Item "README.md" "SecuritySentinel-Windows/"
+        Copy-Item "README_CPP.md" "SecuritySentinel-Windows/"
+        Copy-Item "LICENSE" "SecuritySentinel-Windows/"
+        
+        # Create sample config
+        @"
+        [gemini]
+        api_key=YOUR_GEMINI_API_KEY_HERE
+        model=gemini-2.5-flash
+        max_tokens=1000
+        temperature=0.7
+        
+        [monitoring]
+        enabled=true
+        update_interval=5
+        log_level=INFO
+        max_events=10000
+        
+        [network]
+        monitor_enabled=true
+        block_suspicious=true
+        whitelist_ips=192.168.1.0/24,10.0.0.0/8
+        scan_detection_threshold=5
+        ddos_detection_threshold=100
+        "@ | Out-File -FilePath "SecuritySentinel-Windows/config.ini" -Encoding UTF8
+        
+        # Create ZIP package
+        Compress-Archive -Path "SecuritySentinel-Windows/*" -DestinationPath "SecuritySentinel-Windows-x64.zip"
+        
+    - name: 📤 Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./SecuritySentinel-Windows-x64.zip
+        asset_name: SecuritySentinel-Windows-x64.zip
+        asset_content_type: application/zip
+
+  build-web:
+    name: 🌐 Build Web Release
+    runs-on: ubuntu-latest
+    needs: create-release
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🟢 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: 📦 Install dependencies
+      run: npm ci
+      
+    - name: 🔨 Build web application
+      run: npm run build
+      
+    - name: 📦 Package web release
+      run: |
+        # Create release package
+        mkdir -p SecuritySentinel-Web
+        
+        # Copy build files
+        cp -r dist/* SecuritySentinel-Web/
+        
+        # Copy documentation
+        cp README.md SecuritySentinel-Web/
+        cp LICENSE SecuritySentinel-Web/
+        
+        # Create setup instructions
+        cat > SecuritySentinel-Web/SETUP.md << EOF
+        # Security Sentinel Web Interface Setup
+        
+        ## Quick Start
+        
+        1. **Get Gemini API Key**: Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+        2. **Configure Environment**: Create \`.env.local\` file with:
+           \`\`\`
+           GEMINI_API_KEY=your_api_key_here
+           \`\`\`
+        3. **Serve Files**: Use any static file server:
+           \`\`\`bash
+           # Option 1: Python
+           python -m http.server 8080
+           
+           # Option 2: Node.js
+           npx serve . -p 8080
+           
+           # Option 3: PHP
+           php -S localhost:8080
+           \`\`\`
+        4. **Open Browser**: Navigate to http://localhost:8080
+        
+        ## Production Deployment
+        
+        Deploy the contents of this directory to any static hosting service:
+        - Vercel, Netlify, GitHub Pages
+        - Apache, Nginx
+        - AWS S3, Azure Static Web Apps
+        
+        Remember to configure your environment variables in your hosting platform.
+        EOF
+        
+        # Create ZIP package
+        tar -czf SecuritySentinel-Web.tar.gz SecuritySentinel-Web/
+        
+    - name: 📤 Upload Web Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ./SecuritySentinel-Web.tar.gz
+        asset_name: SecuritySentinel-Web.tar.gz
+        asset_content_type: application/gzip
+
+  publish-summary:
+    name: 📊 Publish Release Summary
+    runs-on: ubuntu-latest
+    needs: [create-release, build-cpp, build-web]
+    if: always()
+    
+    steps:
+    - name: 📊 Generate Release Summary
+      run: |
+        echo "# 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Release Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tag**: ${{ github.ref_name || github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Release ID**: ${{ needs.create-release.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Build Status" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔨 C++ Build | ${{ needs.build-cpp.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🌐 Web Build | ${{ needs.build-web.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📥 Download Links" >> $GITHUB_STEP_SUMMARY
+        echo "Visit the [Releases Page](https://github.com/GizzZmo/security-sentinel-for-windows-11/releases) to download:" >> $GITHUB_STEP_SUMMARY
+        echo "- **SecuritySentinel-Windows-x64.zip** - Native C++ application" >> $GITHUB_STEP_SUMMARY
+        echo "- **SecuritySentinel-Web.tar.gz** - Web interface" >> $GITHUB_STEP_SUMMARY

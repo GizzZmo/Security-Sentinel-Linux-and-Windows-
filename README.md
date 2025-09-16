@@ -6,6 +6,14 @@
 [![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://reactjs.org/)
 [![Gemini AI](https://img.shields.io/badge/Gemini-AI-4285f4.svg)](https://ai.google.dev/)
 
+## 🚀 Build Status
+
+[![🌐 Web Interface CI](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/ci-web.yml/badge.svg)](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/ci-web.yml)
+[![🔨 C++ Build CI](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/ci-cpp.yml/badge.svg)](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/ci-cpp.yml)
+[![🔐 Security Scanning](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/security.yml/badge.svg)](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/security.yml)
+[![🧹 Code Quality](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/code-quality.yml/badge.svg)](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/code-quality.yml)
+[![🌐 Deploy to GitHub Pages](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/GizzZmo/security-sentinel-for-windows-11/actions/workflows/deploy-pages.yml)
+
 > **A comprehensive security monitoring application for Windows 11 with AI-powered threat analysis using Google's Gemini API.**
 
 ![Security Sentinel Dashboard](https://via.placeholder.com/800x400/1f2937/ffffff?text=Security+Sentinel+Dashboard)
