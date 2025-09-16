@@ -46,6 +46,7 @@ namespace Utils {
     // Console utilities
     void ClearConsole();
     void SetConsoleTitle(const std::string& title);
+    void SetConsoleTitleW(const std::string& title);
     void SetConsoleColor(int foreground, int background = -1);
     void ResetConsoleColor();
     std::string GetConsoleInput(const std::string& prompt = "");

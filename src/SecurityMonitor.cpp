@@ -55,7 +55,7 @@ std::vector<SecurityMonitor::SecurityEvent> SecurityMonitor::GetRecentEvents(int
     std::lock_guard<std::mutex> lock(eventsMutex_);
     
     std::vector<SecurityEvent> result;
-    int count = std::min(limit, static_cast<int>(events_.size()));
+    int count = std::min<int>(limit, static_cast<int>(events_.size()));
     
     if (count > 0) {
         result.assign(events_.end() - count, events_.end());

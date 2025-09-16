@@ -238,6 +238,13 @@ void SetConsoleTitle(const std::string& title) {
 #endif
 }
 
+void SetConsoleTitleW(const std::string& title) {
+#ifdef _WIN32
+    std::wstring wTitle(title.begin(), title.end());
+    ::SetConsoleTitleW(wTitle.c_str());
+#endif
+}
+
 void SetConsoleColor(int foreground, int background) {
 #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
