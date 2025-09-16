@@ -1,0 +1,204 @@
+name: 🔍 Pull Request Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ main, develop ]
+
+jobs:
+  pr-info:
+    name: 📋 PR Information
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 📊 Analyze PR changes
+      run: |
+        echo "# 🔍 Pull Request Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Get file changes
+        echo "## 📁 Changed Files" >> $GITHUB_STEP_SUMMARY
+        git diff --name-only origin/${{ github.base_ref }}..HEAD | head -20 | while read file; do
+          if [[ $file == *.cpp ]] || [[ $file == *.h ]] || [[ $file == *.hpp ]]; then
+            echo "- 🔨 \`$file\` (C++)" >> $GITHUB_STEP_SUMMARY
+          elif [[ $file == *.ts ]] || [[ $file == *.tsx ]] || [[ $file == *.js ]] || [[ $file == *.jsx ]]; then
+            echo "- 🌐 \`$file\` (Web)" >> $GITHUB_STEP_SUMMARY
+          elif [[ $file == *.md ]]; then
+            echo "- 📚 \`$file\` (Documentation)" >> $GITHUB_STEP_SUMMARY
+          elif [[ $file == *.yml ]] || [[ $file == *.yaml ]]; then
+            echo "- ⚙️ \`$file\` (Workflow)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 📄 \`$file\`" >> $GITHUB_STEP_SUMMARY
+          fi
+        done
+        
+        # Get commit count
+        commit_count=$(git rev-list --count origin/${{ github.base_ref }}..HEAD)
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📈 Statistics" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commits**: $commit_count" >> $GITHUB_STEP_SUMMARY
+        
+        # Get line changes
+        lines_added=$(git diff --shortstat origin/${{ github.base_ref }}..HEAD | grep -o '[0-9]\+ insertion' | grep -o '[0-9]\+' || echo "0")
+        lines_deleted=$(git diff --shortstat origin/${{ github.base_ref }}..HEAD | grep -o '[0-9]\+ deletion' | grep -o '[0-9]\+' || echo "0")
+        echo "- **Lines Added**: +$lines_added" >> $GITHUB_STEP_SUMMARY
+        echo "- **Lines Deleted**: -$lines_deleted" >> $GITHUB_STEP_SUMMARY
+
+  validate-title:
+    name: 📝 Validate PR Title
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🔍 Check PR title format
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        echo "Validating PR title: $PR_TITLE"
+        
+        # Check for conventional commit format or descriptive format
+        if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?: .+ ]] || \
+           [[ $PR_TITLE =~ ^(Add|Update|Fix|Remove|Improve|Refactor) ]] || \
+           [[ ${#PR_TITLE} -ge 10 ]]; then
+          echo "✅ PR title is valid" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ PR title should be descriptive (at least 10 characters)" >> $GITHUB_STEP_SUMMARY
+          echo "Examples:" >> $GITHUB_STEP_SUMMARY
+          echo "- feat: add new security monitoring feature" >> $GITHUB_STEP_SUMMARY
+          echo "- fix: resolve memory leak in network monitor" >> $GITHUB_STEP_SUMMARY
+          echo "- docs: update installation guide" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
+
+  check-branch-protection:
+    name: 🛡️ Branch Protection Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔍 Check for direct main commits
+      run: |
+        if [[ "${{ github.base_ref }}" == "main" ]]; then
+          echo "## 🛡️ Main Branch Protection" >> $GITHUB_STEP_SUMMARY
+          echo "This PR targets the main branch. Ensure:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ All CI checks pass" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code review completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Documentation updated if needed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No breaking changes (or properly documented)" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  validate-changes:
+    name: 🔄 Validate Changes
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 🔍 Check for sensitive files
+      run: |
+        echo "## 🔒 Security Check" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for potential sensitive files
+        sensitive_patterns=("*.key" "*.pem" "*.p12" "*.env" "config.ini" "secrets.*")
+        found_sensitive=false
+        
+        for pattern in "${sensitive_patterns[@]}"; do
+          if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E "$pattern" >/dev/null; then
+            echo "⚠️ Potential sensitive file found: $pattern" >> $GITHUB_STEP_SUMMARY
+            found_sensitive=true
+          fi
+        done
+        
+        if [ "$found_sensitive" = false ]; then
+          echo "✅ No sensitive files detected" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Please review these files to ensure no secrets are committed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+    - name: 📝 Check for TODO/FIXME comments
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📝 Code Comments Review" >> $GITHUB_STEP_SUMMARY
+        
+        # Find TODO/FIXME in changed files
+        todos=$(git diff origin/${{ github.base_ref }}..HEAD | grep -i "TODO\|FIXME\|XXX\|HACK" | head -5 || true)
+        if [ -n "$todos" ]; then
+          echo "Found development comments:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "$todos" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "Consider addressing these before merging" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "✅ No development comments found" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  check-dependencies:
+    name: 📦 Dependency Changes
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: 🔍 Check package.json changes
+      run: |
+        if git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -q "package.json\|package-lock.json"; then
+          echo "## 📦 Dependency Changes Detected" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Show dependency changes
+          if git diff origin/${{ github.base_ref }}..HEAD package.json >/dev/null 2>&1; then
+            echo "### package.json changes:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`diff" >> $GITHUB_STEP_SUMMARY
+            git diff origin/${{ github.base_ref }}..HEAD package.json | head -50 >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Review Required**: Dependency changes detected" >> $GITHUB_STEP_SUMMARY
+          echo "- Verify new dependencies are necessary" >> $GITHUB_STEP_SUMMARY
+          echo "- Check for security vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Ensure license compatibility" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## 📦 Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "✅ No dependency changes detected" >> $GITHUB_STEP_SUMMARY
+        fi
+
+  pr-summary:
+    name: 📊 PR Summary
+    runs-on: ubuntu-latest
+    needs: [pr-info, validate-title, check-branch-protection, validate-changes, check-dependencies]
+    if: always()
+    
+    steps:
+    - name: 📊 Generate PR Summary
+      run: |
+        echo "# 📋 Pull Request Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 📋 PR Information | ${{ needs.pr-info.result == 'success' && '✅ Completed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📝 Title Validation | ${{ needs.validate-title.result == 'success' && '✅ Valid' || '❌ Invalid' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🛡️ Branch Protection | ${{ needs.check-branch-protection.result == 'success' && '✅ Checked' || '❌ Issues' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🔄 Change Validation | ${{ needs.validate-changes.result == 'success' && '✅ Passed' || '❌ Issues' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📦 Dependencies | ${{ needs.check-dependencies.result == 'success' && '✅ Checked' || '❌ Issues' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "${{ needs.validate-title.result }}" == "success" && \
+              "${{ needs.check-branch-protection.result }}" == "success" && \
+              "${{ needs.validate-changes.result }}" == "success" && \
+              "${{ needs.check-dependencies.result }}" == "success" ]]; then
+          echo "✅ **All validations passed!** This PR is ready for review." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Some validations failed.** Please review the issues above." >> $GITHUB_STEP_SUMMARY
+        fi
