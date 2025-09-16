@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { View } from '../types';
-import Icon from './Icon';
+import Icon from './icon';
 
 interface SidebarProps {
   currentView: View;

@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { ChatMessage } from '../types';
 import { sendMessageStream } from '../services/geminiService';
-import Icon from './Icon';
+import Icon from './icon';
 import Spinner from './Spinner';
 
 const AIAssistant: React.FC = () => {

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import Icon from './Icon';
+import Icon from './icon';
 
 interface HeaderProps {
   title: string;
