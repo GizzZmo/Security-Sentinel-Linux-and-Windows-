@@ -232,11 +232,6 @@ void ClearConsole() {
 #endif
 }
 
-void SetConsoleTitle(const std::string& title) {
-#ifdef _WIN32
-    SetConsoleTitleA(title.c_str());
-#endif
-}
 
 void SetConsoleTitleW(const std::string& title) {
 #ifdef _WIN32
