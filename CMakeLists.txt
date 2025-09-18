@@ -19,9 +19,6 @@ add_executable(SecuritySentinel
     src/ViewManager.cpp
     src/SecurityMonitor.cpp
     src/NetworkMonitor.cpp
-    src/ThreatProtection.cpp
-    src/Dashboard.cpp
-    src/AIAssistant.cpp
     src/Utils.cpp
 )
 
