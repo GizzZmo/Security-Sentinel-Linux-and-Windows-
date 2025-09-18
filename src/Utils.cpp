@@ -6,6 +6,8 @@
 #include <regex>
 #include <random>
 #include <iostream>
+#include <vector>
+#include <cctype>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -98,9 +100,13 @@ bool IsValidIPv4(const std::string& ip) {
     }
     
     for (int i = 1; i <= 4; ++i) {
-        int octet = std::stoi(matches[i].str());
-        if (octet < 0 || octet > 255) {
-            return false;
+        try {
+            int octet = std::stoi(matches[i].str());
+            if (octet < 0 || octet > 255) {
+                return false;
+            }
+        } catch (const std::exception&) {
+            return false; // Invalid number format
         }
     }
     
@@ -108,8 +114,51 @@ bool IsValidIPv4(const std::string& ip) {
 }
 
 bool IsValidIPv6(const std::string& ip) {
-    // Simplified IPv6 validation
-    return ip.find(':') != std::string::npos && ip.length() <= 39;
+    // Basic IPv6 validation with proper format checking
+    if (ip.empty() || ip.length() > 39) {
+        return false;
+    }
+    
+    // Must contain at least one colon
+    if (ip.find(':') == std::string::npos) {
+        return false;
+    }
+    
+    // Split by colons and validate each segment
+    auto segments = Split(ip, ':');
+    
+    // IPv6 has 8 segments (or fewer with :: compression)
+    if (segments.size() > 8) {
+        return false;
+    }
+    
+    // Check for double colon (compression)
+    size_t doubleColonPos = ip.find("::");
+    bool hasCompression = (doubleColonPos != std::string::npos);
+    
+    // If no compression, must have exactly 8 segments
+    if (!hasCompression && segments.size() != 8) {
+        return false;
+    }
+    
+    // Validate each non-empty segment
+    for (const auto& segment : segments) {
+        if (!segment.empty()) {
+            // Each segment must be 1-4 hex digits
+            if (segment.length() > 4) {
+                return false;
+            }
+            
+            // Check if all characters are valid hex digits
+            for (char c : segment) {
+                if (!std::isxdigit(c)) {
+                    return false;
+                }
+            }
+        }
+    }
+    
+    return true;
 }
 
 bool IsPrivateIP(const std::string& ip) {
@@ -118,19 +167,23 @@ bool IsPrivateIP(const std::string& ip) {
     auto parts = Split(ip, '.');
     if (parts.size() != 4) return false;
     
-    int first = std::stoi(parts[0]);
-    int second = std::stoi(parts[1]);
-    
-    // 10.0.0.0/8
-    if (first == 10) return true;
-    
-    // 172.16.0.0/12
-    if (first == 172 && second >= 16 && second <= 31) return true;
-    
-    // 192.168.0.0/16
-    if (first == 192 && second == 168) return true;
-    
-    return false;
+    try {
+        int first = std::stoi(parts[0]);
+        int second = std::stoi(parts[1]);
+        
+        // 10.0.0.0/8
+        if (first == 10) return true;
+        
+        // 172.16.0.0/12
+        if (first == 172 && second >= 16 && second <= 31) return true;
+        
+        // 192.168.0.0/16
+        if (first == 192 && second == 168) return true;
+        
+        return false;
+    } catch (const std::exception&) {
+        return false; // Invalid number format
+    }
 }
 
 bool IsLocalIP(const std::string& ip) {
@@ -158,8 +211,19 @@ std::string ReadFile(const std::string& filename) {
         return "";
     }
     
+    // Check if file is actually readable
+    if (!file.good()) {
+        return "";
+    }
+    
     std::stringstream buffer;
     buffer << file.rdbuf();
+    
+    // Check for read errors
+    if (file.bad()) {
+        return "";
+    }
+    
     return buffer.str();
 }
 
@@ -170,7 +234,13 @@ bool WriteFile(const std::string& filename, const std::string& content) {
     }
     
     file << content;
-    return file.good();
+    
+    // Check both good() and the stream state
+    bool success = file.good();
+    file.close();
+    
+    // Additional check after close
+    return success && !file.bad();
 }
 
 std::string GetExecutableDirectory() {
@@ -235,8 +305,14 @@ void ClearConsole() {
 
 void SetConsoleTitleW(const std::string& title) {
 #ifdef _WIN32
-    std::wstring wTitle(title.begin(), title.end());
-    ::SetConsoleTitleW(wTitle.c_str());
+    // Convert UTF-8 to wide string safely
+    int wideSize = MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, nullptr, 0);
+    if (wideSize > 0) {
+        std::vector<wchar_t> wideTitle(wideSize);
+        if (MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, wideTitle.data(), wideSize) > 0) {
+            ::SetConsoleTitleW(wideTitle.data());
+        }
+    }
 #endif
 }
 
@@ -282,12 +358,12 @@ void WaitForKeyPress() {
 
 std::string GetSystemInfo() {
 #ifdef _WIN32
-    OSVERSIONINFOA osvi;
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFOA));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
-    GetVersionExA(&osvi);
+    // Use GetVersion() instead of deprecated GetVersionExA()
+    DWORD version = GetVersion();
+    DWORD majorVersion = (DWORD)(LOBYTE(LOWORD(version)));
+    DWORD minorVersion = (DWORD)(HIBYTE(LOWORD(version)));
     
-    return "Windows " + std::to_string(osvi.dwMajorVersion) + "." + std::to_string(osvi.dwMinorVersion);
+    return "Windows " + std::to_string(majorVersion) + "." + std::to_string(minorVersion);
 #else
     return "Unknown OS";
 #endif
@@ -300,16 +376,34 @@ double GetCPUUsage() {
     static bool initialized = false;
     
     if (!initialized) {
-        PdhOpenQuery(nullptr, NULL, &cpuQuery);
-        PdhAddCounterA(cpuQuery, "\\Processor(_Total)\\% Processor Time", NULL, &cpuTotal);
+        PDH_STATUS status = PdhOpenQuery(nullptr, NULL, &cpuQuery);
+        if (status != ERROR_SUCCESS) {
+            return 0.0; // Return 0 on error
+        }
+        
+        status = PdhAddCounterA(cpuQuery, "\\Processor(_Total)\\% Processor Time", NULL, &cpuTotal);
+        if (status != ERROR_SUCCESS) {
+            PdhCloseQuery(cpuQuery);
+            cpuQuery = nullptr;
+            return 0.0; // Return 0 on error
+        }
+        
         PdhCollectQueryData(cpuQuery);
         initialized = true;
         return 0.0; // First call returns 0
     }
     
     PDH_FMT_COUNTERVALUE counterVal;
-    PdhCollectQueryData(cpuQuery);
-    PdhGetFormattedCounterValue(cpuTotal, PDH_FMT_DOUBLE, nullptr, &counterVal);
+    PDH_STATUS status = PdhCollectQueryData(cpuQuery);
+    if (status != ERROR_SUCCESS) {
+        return 0.0; // Return 0 on error
+    }
+    
+    status = PdhGetFormattedCounterValue(cpuTotal, PDH_FMT_DOUBLE, nullptr, &counterVal);
+    if (status != ERROR_SUCCESS) {
+        return 0.0; // Return 0 on error
+    }
+    
     return counterVal.doubleValue;
 #else
     // Simulate CPU usage
@@ -426,7 +520,7 @@ bool Config::Load(const std::string& filename) {
         return false;
     }
     
-    // Simple INI parser
+    // Simple INI parser with bounds checking
     std::istringstream stream(content);
     std::string line;
     std::string currentSection;
@@ -437,14 +531,16 @@ bool Config::Load(const std::string& filename) {
             continue;
         }
         
-        if (line[0] == '[' && line.back() == ']') {
+        if (line[0] == '[' && line.back() == ']' && line.length() > 2) {
             currentSection = line.substr(1, line.length() - 2);
         } else {
             size_t pos = line.find('=');
-            if (pos != std::string::npos) {
+            if (pos != std::string::npos && pos > 0 && pos < line.length() - 1) {
                 std::string key = Trim(line.substr(0, pos));
                 std::string value = Trim(line.substr(pos + 1));
-                config_[currentSection][key] = value;
+                if (!key.empty()) {
+                    config_[currentSection][key] = value;
+                }
             }
         }
     }
@@ -461,14 +557,24 @@ bool Config::Save(const std::string& filename) {
     for (const auto& section : config_) {
         if (!section.first.empty()) {
             file << "[" << section.first << "]\n";
+            if (file.bad()) {
+                return false;
+            }
         }
         for (const auto& keyValue : section.second) {
             file << keyValue.first << "=" << keyValue.second << "\n";
+            if (file.bad()) {
+                return false;
+            }
         }
         file << "\n";
+        if (file.bad()) {
+            return false;
+        }
     }
     
-    return true;
+    file.close();
+    return !file.bad();
 }
 
 std::string Config::GetString(const std::string& section, const std::string& key, 
