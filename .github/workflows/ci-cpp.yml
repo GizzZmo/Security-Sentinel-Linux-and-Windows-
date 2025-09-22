@@ -32,7 +32,7 @@ jobs:
         
     steps:
     - name: 📥 Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: 🛠️ Setup MSVC
       uses: microsoft/setup-msbuild@v2
@@ -87,7 +87,7 @@ jobs:
     
     steps:
     - name: 📥 Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: 🛠️ Setup MSVC
       uses: microsoft/setup-msbuild@v2
@@ -116,7 +116,7 @@ jobs:
     
     steps:
     - name: 📥 Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: 🔍 Run Semgrep security scan
       uses: semgrep/semgrep-action@v1

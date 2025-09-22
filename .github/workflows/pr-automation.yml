@@ -19,7 +19,7 @@ jobs:
       
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Label based on changed files
       uses: actions/github-script@v8
@@ -81,7 +81,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Check PR title format
       run: |
@@ -133,7 +133,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Check PR size
       uses: actions/github-script@v8
@@ -191,7 +191,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Handle commands
       uses: actions/github-script@v8

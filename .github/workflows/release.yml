@@ -28,7 +28,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     # Web interface build (Ubuntu)
     - name: Setup Node.js (Web)
@@ -103,7 +103,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       
     - name: Download all artifacts
       uses: actions/download-artifact@v5
