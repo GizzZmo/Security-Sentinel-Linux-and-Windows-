@@ -77,7 +77,7 @@ void ViewManager::InitializeConsole() {
 void ViewManager::ShowMainMenu() {
     while (isRunning_) {
         ClearScreen();
-        PrintHeader("Windows 11 Security Sentinel");
+        PrintHeader("Security Sentinel");
         
         std::cout << "\n";
         SetConsoleColor(14); // Yellow
@@ -352,7 +352,7 @@ int ViewManager::GetMenuChoice(int maxChoice) {
 }
 
 void ViewManager::SetConsoleColor(int color) {
-    Utils::SetConsoleColor(color);
+    Utils::SetConsoleColor(color, -1);
 }
 
 void ViewManager::ResetConsoleColor() {

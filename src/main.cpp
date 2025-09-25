@@ -6,7 +6,7 @@
 int main(int argc, char* argv[]) {
     try {
         // Set console title and properties
-        Utils::SetConsoleTitle("Windows 11 Security Sentinel");
+        Utils::SetConsoleTitle("Security Sentinel");
         Utils::ClearConsole();
         
         // Check if running as administrator
@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::cout << "Windows 11 Security Sentinel initialized successfully!" << std::endl;
+        std::cout << "Security Sentinel initialized successfully!" << std::endl;
         std::cout << "Starting application..." << std::endl;
 
         // Run main application loop

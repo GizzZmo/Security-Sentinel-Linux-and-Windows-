@@ -120,7 +120,7 @@ void SecurityApp::InitializeComponents() {
     if (!apiKey.empty()) {
         geminiClient_->SetApiKey(apiKey);
         geminiClient_->SetSystemInstruction(
-            "You are a world-class cybersecurity expert integrated into \"Windows 11 Security Sentinel,\" "
+            "You are a world-class cybersecurity expert integrated into \"Security Sentinel,\" "
             "a security application. Your role is to assist users in understanding and mitigating network threats. "
             "Provide clear, concise, and actionable security advice based on the context provided."
         );
