@@ -66,12 +66,10 @@ int Dashboard::GetThreatLevel() const {
 void Dashboard::CalculateOverallStatus() {
     int criticalCount = 0;
     int warningCount = 0;
-    int goodCount = 0;
     
     for (const auto& metric : metrics_) {
         if (metric.status == "critical") criticalCount++;
         else if (metric.status == "warning") warningCount++;
-        else if (metric.status == "good") goodCount++;
     }
     
     if (criticalCount > 0) {

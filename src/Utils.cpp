@@ -335,7 +335,7 @@ void SetConsoleColor(int foreground, int background) {
 
 void ResetConsoleColor() {
 #ifdef _WIN32
-    SetConsoleColor(7); // Default white
+    SetConsoleColor(7, -1); // Default white, no background change
 #endif
 }
 
@@ -578,7 +578,7 @@ bool Config::Save(const std::string& filename) {
 }
 
 std::string Config::GetString(const std::string& section, const std::string& key, 
-                             const std::string& defaultValue) {
+                             const std::string& defaultValue) const {
     auto sectionIt = config_.find(section);
     if (sectionIt != config_.end()) {
         auto keyIt = sectionIt->second.find(key);
@@ -589,7 +589,7 @@ std::string Config::GetString(const std::string& section, const std::string& key
     return defaultValue;
 }
 
-int Config::GetInt(const std::string& section, const std::string& key, int defaultValue) {
+int Config::GetInt(const std::string& section, const std::string& key, int defaultValue) const {
     std::string value = GetString(section, key);
     if (value.empty()) {
         return defaultValue;
@@ -601,7 +601,7 @@ int Config::GetInt(const std::string& section, const std::string& key, int defau
     }
 }
 
-bool Config::GetBool(const std::string& section, const std::string& key, bool defaultValue) {
+bool Config::GetBool(const std::string& section, const std::string& key, bool defaultValue) const {
     std::string value = ToLower(GetString(section, key));
     if (value.empty()) {
         return defaultValue;

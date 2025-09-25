@@ -74,9 +74,9 @@ namespace Utils {
         bool Save(const std::string& filename = "config.ini");
         
         std::string GetString(const std::string& section, const std::string& key, 
-                             const std::string& defaultValue = "");
-        int GetInt(const std::string& section, const std::string& key, int defaultValue = 0);
-        bool GetBool(const std::string& section, const std::string& key, bool defaultValue = false);
+                             const std::string& defaultValue = "") const;
+        int GetInt(const std::string& section, const std::string& key, int defaultValue = 0) const;
+        bool GetBool(const std::string& section, const std::string& key, bool defaultValue = false) const;
         
         void SetString(const std::string& section, const std::string& key, const std::string& value);
         void SetInt(const std::string& section, const std::string& key, int value);
