@@ -1,0 +1,58 @@
+# Jekyll Configuration for Security Sentinel
+# This configuration tells Jekyll to build from the root directory instead of docs/
+
+source: .
+destination: _site
+
+# Exclude files that shouldn't be processed by Jekyll
+exclude:
+  - node_modules/
+  - package*.json
+  - vite.config.ts
+  - tsconfig.json
+  - .env*
+  - dist/
+  - build/
+  - src/
+  - components/
+  - services/
+  - "*.ts"
+  - "*.tsx"
+  - "*.cpp"
+  - "*.h"
+  - CMakeLists.txt
+  - .git*
+  - README_CPP.md
+  - IMPLEMENTATION_SUMMARY.md
+
+# Include files that should be processed
+include:
+  - README.md
+  - CONTRIBUTING.md
+  - CHANGELOG.md
+  - LICENSE
+  - wiki/
+
+# Basic Jekyll settings
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Plugin settings (GitHub Pages compatible)
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+
+# Enable relative links and optional front matter
+relative_links:
+  enabled: true
+  collections: true
+
+optional_front_matter:
+  enabled: true
+
+readme_index:
+  enabled: true
