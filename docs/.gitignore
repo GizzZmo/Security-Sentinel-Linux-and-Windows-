@@ -1,0 +1,18 @@
+# Jekyll generated site
+_site/
+
+# Jekyll cache
+.jekyll-cache/
+.jekyll-metadata
+
+# Dependencies
+Gemfile.lock
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

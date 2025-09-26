@@ -60,3 +60,11 @@ config.ini
 *.ntvs*
 *.njsproj
 *.sw?
+
+# Jekyll generated files (for docs directory)
+docs/_site/
+docs/.jekyll-cache/
+docs/.jekyll-metadata
+docs/Gemfile.lock
+docs/vendor/
+docs/.bundle/
