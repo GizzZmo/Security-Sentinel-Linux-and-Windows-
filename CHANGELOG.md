@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2024-12-26
+
 ### 📚 Documentation
 - Added comprehensive WIKI documentation with 15+ detailed guides
 - Created detailed About page explaining project mission and features
