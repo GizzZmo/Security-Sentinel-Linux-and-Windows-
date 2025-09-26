@@ -539,7 +539,7 @@ bool Config::Load(const std::string& filename) {
             continue;
         }
         
-        if (line[0] == '[' && line.back() == ']' && line.length() > 2) {
+        if (line.length() > 2 && line[0] == '[' && line.back() == ']') {
             currentSection = line.substr(1, line.length() - 2);
         } else {
             size_t pos = line.find('=');
