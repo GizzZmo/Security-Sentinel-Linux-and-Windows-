@@ -305,12 +305,20 @@ void ClearConsole() {
 
 void SetConsoleTitleW(const std::string& title) {
 #ifdef _WIN32
-    // Convert UTF-8 to wide string safely
-    int wideSize = MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, nullptr, 0);
+    // Optimize: use a stack buffer for most titles, heap only if needed
+    constexpr int STACK_BUFFER_SIZE = 256;
+    wchar_t stackBuffer[STACK_BUFFER_SIZE];
+    int wideSize = MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, stackBuffer, STACK_BUFFER_SIZE);
     if (wideSize > 0) {
-        std::vector<wchar_t> wideTitle(wideSize);
-        if (MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, wideTitle.data(), wideSize) > 0) {
-            ::SetConsoleTitleW(wideTitle.data());
+        ::SetConsoleTitleW(stackBuffer);
+    } else {
+        // If the stack buffer was too small, allocate the required size
+        int requiredSize = MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, nullptr, 0);
+        if (requiredSize > STACK_BUFFER_SIZE && requiredSize > 0) {
+            std::vector<wchar_t> wideTitle(requiredSize);
+            if (MultiByteToWideChar(CP_UTF8, 0, title.c_str(), -1, wideTitle.data(), requiredSize) > 0) {
+                ::SetConsoleTitleW(wideTitle.data());
+            }
         }
     }
 #endif
