@@ -60,7 +60,7 @@ jobs:
         echo "Validating PR title: $PR_TITLE"
         
         # Check for conventional commit format or descriptive format
-        if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?: .+ ]] || \
+        if [[ $PR_TITLE =~ ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?:\ .+ ]] || \
            [[ $PR_TITLE =~ ^(Add|Update|Fix|Remove|Improve|Refactor) ]] || \
            [[ ${#PR_TITLE} -ge 10 ]]; then
           echo "✅ PR title is valid" >> $GITHUB_STEP_SUMMARY
