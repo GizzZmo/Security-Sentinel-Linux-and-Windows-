@@ -1,0 +1,72 @@
+# Jekyll Configuration for Security Sentinel Documentation
+# GitHub Pages compatible configuration
+
+# Site settings
+title: Security Sentinel for Windows 11 - Documentation
+description: Advanced security monitoring solution for Windows 11 with AI-powered threat detection
+baseurl: ""
+url: ""
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+# theme: minima  # Commented out to avoid dependency issues
+
+# Kramdown settings for GitHub-flavored markdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: true
+
+# Plugin settings (GitHub Pages compatible only)
+plugins:
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+
+# Relative links configuration
+relative_links:
+  enabled: true
+  collections: true
+
+# Optional front matter
+optional_front_matter:
+  enabled: true
+
+# README index
+readme_index:
+  enabled: true
+
+# Include/exclude settings
+include:
+  - "_pages"
+
+exclude:
+  - "Gemfile"
+  - "Gemfile.lock"
+  - "node_modules"
+  - "vendor/bundle/"
+  - "vendor/cache/"
+  - "vendor/gems/"
+  - "vendor/ruby/"
+
+# Collections for organized documentation
+collections:
+  pages:
+    output: true
+    permalink: /:name/
+
+# Default layouts
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "page"
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"
