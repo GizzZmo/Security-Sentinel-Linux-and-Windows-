@@ -294,6 +294,7 @@ std::map<std::string, std::string> ParseJsonString(const std::string& json) {
     return result;
 }
 
+// Console utilities
 void ClearConsole() {
 #ifdef _WIN32
     system("cls");
@@ -301,7 +302,6 @@ void ClearConsole() {
     system("clear");
 #endif
 }
-
 
 void SetConsoleTitleW(const std::string& title) {
 #ifdef _WIN32
