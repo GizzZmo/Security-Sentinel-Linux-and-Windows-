@@ -29,6 +29,9 @@ bin/
 *.idb
 *.manifest
 
+# Built executables (exclude from repo)
+SecuritySentinel
+
 # CMake
 CMakeCache.txt
 CMakeFiles/
