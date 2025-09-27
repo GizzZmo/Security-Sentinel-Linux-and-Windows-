@@ -325,9 +325,7 @@ void SetConsoleTitleW(const std::string& title) {
 }
 
 void SetConsoleTitle(const std::string& title) {
-#ifdef _WIN32
-    SetConsoleTitleA(title.c_str());
-#endif
+    SetConsoleTitleW(title);
 }
 
 void SetConsoleColor(int foreground, int background) {
